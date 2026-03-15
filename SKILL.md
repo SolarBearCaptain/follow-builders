@@ -332,15 +332,37 @@ The prompt files to use:
 - `summarize-podcast.md` for each podcast episode
 - `summarize-tweets.md` for each builder's tweets
 
-For each podcast in the `podcasts` array of the JSON output:
-1. Take the `transcript` field
-2. Apply the summarize-podcast prompt
-3. Generate a summary
+**CRITICAL — Process ONE episode at a time, not all at once.**
 
-For each builder in the `x` array of the JSON output:
-1. Take their `tweets` array
-2. Apply the summarize-tweets prompt
-3. Generate a summary (or "No notable posts" if nothing substantive)
+The `podcasts` array contains objects like this:
+```json
+{
+  "source": "podcast",
+  "name": "Latent Space",        ← use THIS as the podcast name
+  "title": "Episode Title Here", ← use THIS as the episode title
+  "url": "https://youtube.com/watch?v=xxx", ← use THIS as the link
+  "transcript": "..."            ← summarize THIS transcript
+}
+```
+
+Each object is self-contained. The `name`, `title`, `url`, and `transcript` all
+belong to the SAME episode. Do NOT mix them up across episodes.
+
+Process each episode one at a time:
+1. Read ONE podcast object from the array
+2. Note its `name` (e.g. "Latent Space") and `title` and `url`
+3. Summarize ONLY its `transcript` using the summarize-podcast prompt
+4. In your output, use the `name` and `url` from THIS object — not from any other
+5. Move to the next podcast object. Repeat.
+
+**NEVER** guess which podcast a transcript belongs to by reading the transcript
+content. Always use the `name` field from the JSON object.
+
+For each builder in the `x` array, same principle — process one at a time:
+1. Read ONE builder object (it has `name`, `handle`, and `tweets`)
+2. Summarize ONLY their `tweets` using the summarize-tweets prompt
+3. Use the `name` and `handle` from THIS object
+4. Move to the next builder. Repeat.
 
 Then assemble the full digest using the digest-intro prompt.
 
