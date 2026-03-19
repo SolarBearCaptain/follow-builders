@@ -149,6 +149,51 @@ async function sendEmail(text, apiKey, toEmail) {
   }
 }
 
+// -- Feishu Delivery (Webhook) -----------------------------------------------
+
+// Sends the digest via Feishu group bot webhook.
+// The user creates a custom bot in a Feishu group and provides the webhook URL.
+async function sendFeishu(text, webhookUrl) {
+  // Feishu webhook has a ~30KB limit per message.
+  // Split long digests into chunks at ~4000 chars.
+  const MAX_LEN = 4000;
+  const chunks = [];
+  let remaining = text;
+  while (remaining.length > 0) {
+    if (remaining.length <= MAX_LEN) {
+      chunks.push(remaining);
+      break;
+    }
+    let splitAt = remaining.lastIndexOf('\n', MAX_LEN);
+    if (splitAt < MAX_LEN * 0.5) splitAt = MAX_LEN;
+    chunks.push(remaining.slice(0, splitAt));
+    remaining = remaining.slice(splitAt);
+  }
+
+  for (const chunk of chunks) {
+    const res = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        msg_type: 'text',
+        content: { text: chunk }
+      })
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`Feishu webhook error: ${err}`);
+    }
+
+    const result = await res.json();
+    if (result.code !== 0) {
+      throw new Error(`Feishu webhook error: ${result.msg || JSON.stringify(result)}`);
+    }
+
+    if (chunks.length > 1) await new Promise(r => setTimeout(r, 500));
+  }
+}
+
 // -- Main --------------------------------------------------------------------
 
 async function main() {
@@ -194,6 +239,18 @@ async function main() {
           status: 'ok',
           method: 'email',
           message: `Digest sent to ${toEmail}`
+        }));
+        break;
+      }
+
+      case 'feishu': {
+        const webhookUrl = delivery.webhookUrl;
+        if (!webhookUrl) throw new Error('delivery.webhookUrl not found in config.json');
+        await sendFeishu(digestText, webhookUrl);
+        console.log(JSON.stringify({
+          status: 'ok',
+          method: 'feishu',
+          message: 'Digest sent to Feishu group'
         }));
         break;
       }
